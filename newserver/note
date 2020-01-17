@@ -1,0 +1,20 @@
+可以開始加上opencv了
+
+ubuntu無法播放的話，可以安裝這個
+https://askubuntu.com/questions/214421/how-to-install-the-mpeg-4-aac-decoder-and-the-h-264-decoder
+sudo apt-get install ubuntu-restricted-extras
+
+
+g++ server.cpp main.cpp session.cpp -o server -I /home/tommy/tools/openalpr-2.3.0/src/ -I /home/tommy/tools/openalpr-2.3.0/src/openalpr/ -lopenalpr -I /usr/local/include/ -L /usr/local/lib/ -lopencv_video -lopencv_core -lopencv_highgui -I/home/tommy/tools/openalpr-2.3.0/src/openalpr -L /home/tommy/tools/openalpr-2.3.0/src/build/openalpr/ -lopenalpr -I /home/tommy/tools/openalpr-2.3.0/src/ -I/usr/local/hadoop/include -L/usr/local/hadoop/lib/native -lhdfs
+
+
+env LD_LIBRARY_PATH=/usr/local/hadoop/lib/native ./server 
+
+可能是連線期間新開的fd也被select給輪詢了
+可是其實所有影片都能夠正常的播放
+所以我猜，是因為每次辨識的結果都不太相同，辨識率較高的那個，影片的大小也比較大
+
+（試試辨識之前就塞進影片裡）
+
+
+

@@ -1,0 +1,221 @@
+• Server and Hadoop master node should run on different AWS instances.
+
+
+看來HDFS就很像是一個遠端的檔案系統，而在作業裡確實server本身跟hadoop也是不同instance
+
+
+1. 成功裝起HDFS
+
+2. 學習怎麼跟HDFS
+
+3. 最麻煩的一點應該是Licence plate detector
+
+
+
+gcc ./hi.c -I$HADOOP_HDFS_HOME/include -L$HADOOP_HDFS_HOME/lib/native -lhdfs -o hi
+
+LD_LIBRARY_PATH=/usr/local/hadoop/lib/native ./hi
+
+
+RemoteException: Permission denied: user=tommy, access=WRITE, inode="/":hadoop_admin:supergroup:drwxr-xr-x
+	at org.apache.hadoop.hdfs.server.namenode.FSPermissionChecker.check(FSPermissionChecker.java:399)
+
+或許網路介面可以調整權限？
+
+最後，發覺
+./bin/hadoop dfs
+後面可以接簡單的shell指令，像是：./bin/hadoop dfs -cat /tmp/testfile.txt
+
+之前一直沒辦法成功建立檔案，就是因為沒有一個符合權限的資料夾，
+所以可以用./bin/hadoop dfs -mkdir /tmp, ./bin/hadoop dfs -chmod 777 /tmp
+來拿到一個符合權限的資料夾
+
+/usr/local/hadoop/bin/hdfs dfsadmin -report 
+可以看用了多少容量，還剩多少容量
+
+在連線部分
+
+hdfsFS fs = hdfsConnect("master", 9000);
+的9000 port可以看etc/hadoop/core-site.xml裡面的
+        <property>
+                <name>fs.defaultFS</name>
+                <value>hdfs://master:9000</value>
+        </property>
+
+
+在加速的部份，因為我們不需要實際去辨識出車牌
+我看那些車牌辨識的專案，許多都拆成
+
+1. PlateDetect
+2. 才是進行OCR過程(CharsRecognize)
+
+
+可以試試one-process-per-client model，因爲之後還需要進行辨識（在每個fork出來的process內進行辨識）
+這樣就不會卡死在server proces
+
+
+
+目前看到opencv 2.4好像沒有支援python3
+而opencv 4.1.2有
+
+於是這時候套件會互相打架，這時候該怎麼解決呢？
+可是感覺也還好，因為套件本身後面會有版本號，這樣就不會打架了
+大概吧...
+先build & make & make install opencv 4.1.2試試看
+Ａ：恩恩，這樣沒問題
+然後在opencv 2.4.13.7版本再make install一次，為了能讓C++的開發比較舒服一點
+
+
+
+python用opencv3~4以上的版本（似乎那時候才支援python3）
+
+而c++用opencv2.4.13.7（為了能夠使用openalpr）
+
+
+下一步：
+2. 接收一個frame後，可以向alpr command line tool一樣，吐出分析的資料
+
+我猜：
+可以改openalpr，把ocr的部分改成隨便回傳一個值
+或是可以直接把ocr關掉
+
+
+目前最完美的情況：
+  client發送一個frame，server這邊讀取一個frame後，可以直接往hadoop丟一個frame，丟完整個frame後再把hadoop的連線關掉。
+
+可以關注的關鍵字:
+
+目前比較麻煩的地方是，opencv2.4.13.7好像不支援輸出mp4
+變成兩個執行檔要連結不同的library
+
+opencv videowriter
+ffmpeg
+
+https://blog.csdn.net/zj360202/article/details/79026891
+https://github.com/Raveler/ffmpeg-cpp
+https://www.stepbb.com/topic/316/visual-studio-c-使用ffmpeg-入門範例
+https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
+https://tsaith.github.io/combine-images-into-a-video-with-python-3-and-opencv-3.html
+https://stackoverflow.com/questions/33311153/python-extracting-and-saving-video-frames
+https://medium.com/@iKhushPatel/convert-video-to-images-images-to-video-using-opencv-python-db27a128a481
+
+https://docs.opencv.org/2.4/doc/tutorials/highgui/video-write/video-write.html
+
+比較異想天開的想法，假如可以變成每個frame持續輸出到某個fd的話
+其實也可以pipe給另一個程式，並送給hadoop（有需要嗎？再看看）
+
+
+下一步：
+1. 找到關掉ocr的方法，並用alpr這個cmd line function進行測試
+
+2. 接收資料，並輸出成影片
+
+3. 在自己的c++裡面，使用openalpr的function
+
+4. 測試一下hi.c的部份，兩個write會不會耗掉128MB*2 
+不會耗掉那麼多，表示還是有希望ㄉ
+
+
+算了，先用比較白痴的寫法吧
+
+1. 接收到一個frame  (可以測試UDP & TCP的寫法)
+
+2. 辨識有幾個車牌
+
+3. 用VideoWriter寫到本地端，存成完整影片檔
+
+4. 在本地端寫成完整的影片檔後，向後丟
+
+
+編譯alpr相關的程式
+g++ testalpr.cpp -o testalpr -I /home/tommy/tools/openalpr-2.3.0/src/ -I /home/tommy/tools/openalpr-2.3.0/src/openalpr/ -lopenalpr
+
+
+g++ testalpr.cpp -o testalpr -I /home/tommy/tools/openalpr-2.3.0/src/ -I /home/tommy/tools/openalpr-2.3.0/src/openalpr/ -lopenalpr -I /usr/local/include/ -L /usr/local/lib/ -lopencv_video -lopencv_core -lopencv_highgui
+
+1. frame - -> mp4 using opencv
+
+2. frame - -> plate information using openalpr
+
+3. 測試frame最大是多大
+
+
+Q:可能可以：一個frame一個frame上傳到hadoop，並且在最後補上前0x1000個bytes
+A:不可能，hadoop並不支援隨機位置寫(fseek, lseek)
+這樣變成說，一定要完整下載下來，再上傳到hadoop上，因為會在建置影片檔的時候，不斷的修改檔頭，而我們沒辦法在一開始就知道總frame數是多少
+
+所以一個個frame這個方法先暫時擱置，希望可以找到影片長度沒有放在header的影片格式，才有可能用這個方法。
+
+
+最後：
+1. client send a frame, I receive a frame
+
+2. open hadoop session
+
+3. detect plate every 20~60 frame
+
+4. write the information to hadoop
+
+5. Video write the frame to local
+
+(3, 4, 5 不斷重複 直到一整個影片上傳完畢)
+
+6. close information file
+
+7. start to upload video
+
+8. finish upload video, close the video file, close the hadoop session
+
+9. child process die.
+
+
+g++ serverv2.cpp -o serverv2 -I /home/tommy/tools/openalpr-2.3.0/src/ -I /home/tommy/tools/openalpr-2.3.0/src/openalpr/ -lopenalpr -I /usr/local/include/ -L /usr/local/lib/ -lopencv_video -lopencv_core -lopencv_highgui -I/home/tommy/tools/openalpr-2.3.0/src/openalpr -L /home/tommy/tools/openalpr-2.3.0/src/build/openalpr/ -lopenalpr -I /home/tommy/tools/openalpr-2.3.0/src/ -I/usr/local/hadoop/include -L/usr/local/hadoop/lib/native -lhdfs
+
+下一步：
+
+生成影片
+
+在mac上裝一個ubuntu虛擬機，測試遠端的穩定度
+
+加速的想法：
+	偵測到第一個車牌就跳出迴圈，不要再辨識了
+	仲宣說的方法，減少重複辨識的次數
+
+新的影片每個frame都有車牌，可以在最後輸出有車牌的frame數，來看那一國的車牌比較強
+
+下一步就是把影片跟文字擋上傳道hadoop了～
+
+有一個比較奇妙的bug，就是opencv的VideoWriter在程式碼已經結束的時候，其實還沒有寫完
+所以我們會在檔案還沒寫完的時候就去讀取他，變成在最後都會少一些bytes
+
+
+
+
+相依性整理：
+
+client : opencv 4.1.2 
+//應該用我自己的電腦就行
+
+server : opencv 2.4.13.4
+         hadoop
+
+master : hadoop
+slave1 : hadoop
+slave2 : hadoop
+
+首先把master, slave1, slave2的hadoop建好
+
+把server環境建好，寫好簡單的跟hadoop溝通的hi.c
+把整個server移植到aws上，完整測試整個功能
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,20 @@
+gcc ./hi.c -I$HADOOP_HDFS_HOME/include -L$HADOOP_HDFS_HOME/lib/native -lhdfs -o hi
+
+gcc ./hi.c -I/usr/local/hadoop/include -L/usr/local/hadoop/lib/native -lhdfs -o hi
+
+
+
+env LD_LIBRARY_PATH=/usr/local/hadoop/lib/native ./hi
+
+
+ssh到10.113.208.76那台
+/usr/local/hadoop/bin/hadoop fs -ls /
+http://hadoopspark.blogspot.com/2015/09/6-hadoop-hdfs.html -- 超實用指令集
+
+
+我是照這個裝的
+https://medium.com/@sleo1104/hadoop-3-2-0-%E5%AE%89%E8%A3%9D%E6%95%99%E5%AD%B8%E8%88%87%E4%BB%8B%E7%B4%B9-22aa183be33a
+
+
+不知道為什麼，hdfs不支援char[]，而一定要用char*，然後malloc一塊記憶體給他
+

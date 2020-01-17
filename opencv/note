@@ -1,0 +1,23 @@
+g++ ./hi.cpp -I /usr/local/include/ -L /usr/local/lib/ -lopencv_video -lopencv_core -lopencv_highgui -I/home/tommy/tools/openalpr-2.3.0/src/openalpr -L /home/tommy/tools/openalpr-2.3.0/src/build/openalpr/ -lopenalpr
+
+.avi有幾張frame是寫死在header的
+
+可以先看看現有哪一個config是比較準的
+ls /usr/share/openalpr/runtime_data/config/
+可以看到所有的config檔
+
+
+au.conf       不太行 
+auwide.conf   比au強 
+eu.conf       感覺挺不錯的
+gb.conf       普普通通  
+kr2.conf      不行  
+kr.conf       不行 
+mx.conf       感覺挺不錯 
+sg.conf       感覺挺不錯 
+us.conf       挺好，比mx, sg, eu爛
+
+eu ? sg  > mx 
+
+
+g++ ./testopen.cpp -I /usr/local/include/ -L /usr/local/lib/ -lopencv_video -lopencv_core -lopencv_highgui -I/home/tommy/tools/openalpr-2.3.0/src/openalpr -L /home/tommy/tools/openalpr-2.3.0/src/build/openalpr/ -lopenalpr -I /home/tommy/tools/openalpr-2.3.0/src/ -o testopen
